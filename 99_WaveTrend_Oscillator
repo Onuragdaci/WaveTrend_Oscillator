@@ -1,0 +1,87 @@
+!pip install pandas_ta
+!pip install mplcyberpunk
+!pip install git+https://github.com/rongardF/tvdatafeed
+!pip install backtesting
+
+import warnings
+warnings.simplefilter(action='ignore')
+import pandas as pd
+import pandas_ta as ta
+import numpy as np
+import ssl
+from urllib import request
+from tvDatafeed import TvDatafeed, Interval
+import matplotlib.pyplot as plt
+import mplcyberpunk
+from backtesting import Backtest, Strategy
+import requests
+tv = TvDatafeed()
+
+def Hisse_Temel_Veriler():
+    url1="https://www.isyatirim.com.tr/tr-tr/analiz/hisse/Sayfalar/Temel-Degerler-Ve-Oranlar.aspx#page-1"
+    context = ssl._create_unverified_context()
+    response = request.urlopen(url1, context=context,timeout=10)
+    url1 = response.read()
+    df = pd.read_html(url1,decimal=',', thousands='.')                         #Tüm Hisselerin Tablolarını Aktar
+    df=df[6]
+    Hisseler=df['Kod'].values.tolist()
+    return Hisseler
+
+def WaveTrend(data,n1=10,n2=21):
+    df=data.copy()
+    df['ap'] = ta.hlc3(df['High'], df['Low'], df['Close'])
+    df['esa'] = ta.ema(df['ap'], length=n1)
+    df['d'] = ta.ema((df['ap'] - df['esa']).abs(), length=n1)
+    df['ci'] = (df['ap'] - df['esa']) / (0.015 * df['d'])
+    df['tci1'] = ta.ema(df['ci'], length=n2)
+    df['tci2'] = ta.ema(df['tci1'], length=n2)
+    df['Entry'] = (df['tci1'] > df['tci2'])
+    df['Exit'] =(df['tci1'] < df['tci2'])
+    return df
+
+#Hisse isimlerinin çağırılması ve bastırılması
+Hisseler=Hisse_Temel_Veriler()
+print(Hisseler)
+
+#Raporlama için kullanılacak başlıklar
+Titles = ['Hisse Adı', 'Son Fiyat', 'Kazanma Oranı','Giriş Sinyali', 'Çıkış Sinyali']
+df_signals = pd.DataFrame(columns=Titles)
+
+#Backtest için gerekli class yapısı
+class WaveTrendStrategy(Strategy):
+    def init(self):
+        pass
+    def next(self):
+        if self.data['Entry'] == True and not self.position:
+            self.buy()
+
+        elif self.data['Exit'] == True:
+            self.position.close()
+
+
+for i in range(0,len(Hisseler)):
+    #print(Hisseler[i])
+    try:
+        n1=10
+        n2=21
+        data = tv.get_hist(symbol=Hisseler[i], exchange='BIST', interval=Interval.in_1_hour, n_bars=1000)
+        data.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+        data = data.reset_index()
+        WT_Oscillator=WaveTrend(data,n1,n2)
+        bt = Backtest(WT_Oscillator, WaveTrendStrategy, cash=100000, commission=0.002)
+        Stats = bt.run()
+        Buy=False
+        Sell=False
+        Signals = WT_Oscillator.tail(2)
+        Signals = Signals.reset_index()
+        Buy = Signals.loc[0, 'Entry']==False and Signals.loc[1, 'Entry']==True
+        Sell = Signals.loc[0, 'Exit']== False and Signals.loc[1, 'Exit']== True
+        Last_Price = Signals.loc[1, 'Close']
+        L1 = [Hisseler[i],Last_Price, round(Stats.loc['Win Rate [%]'], 2), str(Buy), str(Sell)]
+        df_signals.loc[len(df_signals)] = L1
+        print(L1)
+    except:
+        pass
+
+df_True = df_signals[(df_signals['Giriş Sinyali'] == 'True')]
+print(df_True)
