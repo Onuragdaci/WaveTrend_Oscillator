@@ -35,7 +35,7 @@ Titles = ['Hisse Adı', 'Son Fiyat', 'Kazanma Oranı','Giriş Sinyali', 'Çıkı
 df_signals = pd.DataFrame(columns=Titles)
 
 #Backtest için gerekli class yapısı
-class WaveTrendStrategy(Strategy):
+class Strategy(Strategy):
     def init(self):
         pass
     def next(self):
