@@ -7,7 +7,6 @@
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
-import matplotlib.pyplot as plt
 from tvDatafeed import TvDatafeed, Interval
 from backtesting import Backtest, Strategy
 from tradingview_screener import get_all_symbols
@@ -56,7 +55,7 @@ for i in range(0,len(Hisseler)):
         data.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
         data = data.reset_index()
         WT_Oscillator=WaveTrend(data,n1,n2)
-        bt = Backtest(WT_Oscillator, WaveTrendStrategy, cash=100000, commission=0.002)
+        bt = Backtest(WT_Oscillator, Strategy, cash=100000, commission=0.002)
         Stats = bt.run()
         Buy=False
         Sell=False
